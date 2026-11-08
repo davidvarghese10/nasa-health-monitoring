@@ -1,0 +1,6 @@
+{
+  "name": "ASTRA — Astronaut Health Intelligence & Monitoring Platform",
+  "description": "Intelligent aerospace telemetry and astronaut health analytics platform for physiological monitoring, explainable anomaly detection, and mission health decision support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
