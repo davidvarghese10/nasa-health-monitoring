@@ -10,12 +10,17 @@ import {
   Award,
   Calendar,
   Clock,
+  Edit2,
   Heart,
+  Plus,
   Radio,
+  Save,
   Shield,
   Thermometer,
   User,
-  Wind
+  UserPlus,
+  Wind,
+  X
 } from 'lucide-react';
 import {
   CartesianGrid,
@@ -26,7 +31,9 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { api } from '../services/api';
 import { AnomalyAlert, Astronaut, PhysiologicalRecord } from '../types';
+import { LiquidGlassCard } from '../components/LiquidGlassCard';
 
 interface AstronautProfilesProps {
   astronauts: Astronaut[];
@@ -35,6 +42,7 @@ interface AstronautProfilesProps {
   telemetry: Record<string, PhysiologicalRecord[]>;
   alerts: AnomalyAlert[];
   onAcknowledgeAlert: (alertId: string) => void;
+  onRefreshAstronauts?: () => void;
 }
 
 export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
@@ -44,12 +52,117 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
   telemetry,
   alerts,
   onAcknowledgeAlert,
+  onRefreshAstronauts,
 }) => {
   const [trendMetric, setTrendMetric] = useState<'heartRate' | 'bloodOxygen' | 'systolicBP' | 'coreTemp'>('heartRate');
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const astronaut = astronauts.find(a => a.id === selectedId) || astronauts[0];
   const astroTelemetry = telemetry[astronaut?.id] || [];
   const latestRecord = astroTelemetry[astroTelemetry.length - 1];
   const astroAlerts = alerts.filter(a => a.astronautId === astronaut?.id);
+
+  // Form state for creating new astronaut
+  const [newAstronautForm, setNewAstronautForm] = useState({
+    id: `ASTRO-0${astronauts.length + 1}`,
+    code: `CREW-ASTRO-0${astronauts.length + 1}`,
+    name: '',
+    role: 'Flight Systems Specialist',
+    callsign: 'Pioneer',
+    age: 38,
+    sex: 'Female' as 'Female' | 'Male',
+    restingHeartRate: 62,
+    bloodOxygen: 98.2,
+    systolicBP: 118,
+    diastolicBP: 74,
+    coreTemp: 37.15,
+    respiratoryRate: 14.0,
+    sleepDuration: 7.2,
+    dailyRadiationRate: 320,
+    notes: 'Ingested crewmember subject for exploration flight monitoring.',
+  });
+
+  // Form state for editing existing astronaut labels
+  const [editForm, setEditForm] = useState({
+    name: astronaut?.name || '',
+    code: astronaut?.code || '',
+    role: astronaut?.role || '',
+    callsign: astronaut?.callsign || '',
+    age: astronaut?.age || 40,
+    sex: astronaut?.sex || 'Female',
+    notes: astronaut?.notes || '',
+  });
+
+  // Keep editForm synced with selected astronaut
+  React.useEffect(() => {
+    if (astronaut) {
+      setEditForm({
+        name: astronaut.name,
+        code: astronaut.code,
+        role: astronaut.role,
+        callsign: astronaut.callsign,
+        age: astronaut.age,
+        sex: astronaut.sex,
+        notes: astronaut.notes,
+      });
+    }
+  }, [astronaut?.id]);
+
+  const handleRegisterNew = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAstronautForm.name.trim()) return;
+    try {
+      setSaving(true);
+      const code = newAstronautForm.code || `CREW-${newAstronautForm.name.split(' ').pop()?.toUpperCase()}`;
+      const payload: Partial<Astronaut> = {
+        id: newAstronautForm.id.toUpperCase(),
+        code,
+        name: newAstronautForm.name,
+        role: newAstronautForm.role,
+        callsign: newAstronautForm.callsign,
+        age: Number(newAstronautForm.age),
+        sex: newAstronautForm.sex,
+        status: 'NOMINAL',
+        baseline: {
+          restingHeartRate: Number(newAstronautForm.restingHeartRate),
+          bloodOxygen: Number(newAstronautForm.bloodOxygen),
+          systolicBP: Number(newAstronautForm.systolicBP),
+          diastolicBP: Number(newAstronautForm.diastolicBP),
+          coreTemp: Number(newAstronautForm.coreTemp),
+          respiratoryRate: Number(newAstronautForm.respiratoryRate),
+          sleepDuration: Number(newAstronautForm.sleepDuration),
+          dailyRadiationRate: Number(newAstronautForm.dailyRadiationRate),
+        },
+        notes: newAstronautForm.notes,
+      };
+
+      const created = await api.createAstronaut(payload);
+      setIsRegisterOpen(false);
+      if (onRefreshAstronauts) onRefreshAstronauts();
+      onSelect(created.id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!astronaut) return;
+    try {
+      setSaving(true);
+      await api.updateAstronaut(astronaut.id, editForm);
+      setIsEditOpen(false);
+      if (onRefreshAstronauts) onRefreshAstronauts();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Format telemetry for trend chart
   const recentTrendData = astroTelemetry.slice(-30).map(r => {
@@ -72,16 +185,16 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Astronaut Switcher Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#0b0f19] border border-slate-800 rounded-lg">
+      {/* Astronaut Switcher Bar with Register Action */}
+      <LiquidGlassCard className="p-4 flex flex-wrap items-center justify-between gap-3" accent="cyan">
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 text-cyan-400" />
           <span className="text-xs font-semibold text-slate-200 font-mono uppercase">
-            CREW DOSSIER SELECTION:
+            CREW DOSSIER SELECTION ({astronauts.length} MONITORED):
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {astronauts.map(a => (
             <button
               key={a.id}
@@ -99,16 +212,25 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
               }`} />
             </button>
           ))}
+
+          <button
+            onClick={() => setIsRegisterOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 transition-colors ml-1 font-semibold"
+            title="Register a new astronaut profile"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Register Profile</span>
+          </button>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Main Profile Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Demographic & Biometric Overview */}
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6 space-y-6">
+        <LiquidGlassCard className="p-6 space-y-6" accent="cyan">
           <div className="flex items-start gap-4">
             <img
-              src={astronaut.avatarUrl}
+              src={astronaut.avatarUrl || "/src/assets/images/astronaut_alex_1794153633409.jpg"}
               alt={astronaut.name}
               className="w-20 h-20 rounded-lg object-cover border border-slate-700 shadow-md shrink-0"
               referrerPolicy="no-referrer"
@@ -129,11 +251,19 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
               <h2 className="text-lg font-bold text-white mt-0.5 truncate">{astronaut.name}</h2>
               <div className="text-xs font-mono text-slate-400">Callsign: "{astronaut.callsign}"</div>
               <p className="text-xs text-slate-300 mt-1">{astronaut.role}</p>
+
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="mt-2 flex items-center gap-1 text-[11px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                <Edit2 className="w-3 h-3" />
+                <span>Edit Astronaut Labels</span>
+              </button>
             </div>
           </div>
 
           <div className="text-[11px] font-mono text-slate-400 p-2.5 rounded bg-slate-900/60 border border-slate-800">
-            SIMULATED ASTRONAUT PROFILE — NASA SPACE APPS DEMONSTRATION
+            ASTRONAUT PROFILE DOSSIER · EXPEDITION 74
           </div>
 
           {/* Demographics & Spaceflight Metrics */}
@@ -201,12 +331,12 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
               {astronaut.notes}
             </p>
           </div>
-        </div>
+        </LiquidGlassCard>
 
         {/* Right Column (2 Cols): Real-time Telemetry Dashboard & Historical Trends */}
         <div className="lg:col-span-2 space-y-6">
           {/* Live Physiological Telemetry Grid */}
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5">
+          <LiquidGlassCard className="p-5" accent="blue">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide">
                 CURRENT PHYSIOLOGICAL TELEMETRY
@@ -307,10 +437,10 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
                 <div className="text-[10px] font-mono text-slate-500 mt-0.5">µSV/DAY (CPAD)</div>
               </div>
             </div>
-          </div>
+          </LiquidGlassCard>
 
           {/* Longitudinal Trend Analysis Chart */}
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5">
+          <LiquidGlassCard className="p-5" accent="cyan">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div>
                 <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide">
@@ -373,10 +503,10 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </LiquidGlassCard>
 
           {/* Recent Alerts for this Astronaut */}
-          <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5">
+          <LiquidGlassCard className="p-5" accent="amber">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
@@ -448,9 +578,281 @@ export const AstronautProfiles: React.FC<AstronautProfilesProps> = ({
                 ))
               )}
             </div>
-          </div>
+          </LiquidGlassCard>
         </div>
       </div>
+
+      {/* Modal: Register New Astronaut Profile */}
+      {isRegisterOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl bg-[#0c101b] border border-slate-800 rounded-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-cyan-400 font-mono text-sm font-semibold">
+                <UserPlus className="w-4 h-4" />
+                <span>REGISTER NEW ASTRONAUT CREWMEMBER</span>
+              </div>
+              <button
+                onClick={() => setIsRegisterOpen(false)}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterNew} className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">ASTRONAUT ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={newAstronautForm.id}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, id: e.target.value.toUpperCase() })}
+                    placeholder="e.g. ASTRO-04"
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">TACTICAL CODE</label>
+                  <input
+                    type="text"
+                    required
+                    value={newAstronautForm.code}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, code: e.target.value.toUpperCase() })}
+                    placeholder="e.g. CREW-REED"
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">FULL NAME & PROFESSIONAL TITLE</label>
+                <input
+                  type="text"
+                  required
+                  value={newAstronautForm.name}
+                  onChange={e => setNewAstronautForm({ ...newAstronautForm, name: e.target.value })}
+                  placeholder="e.g. Dr. Samantha Reed, PhD"
+                  className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">ROLE</label>
+                  <input
+                    type="text"
+                    required
+                    value={newAstronautForm.role}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, role: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">CALLSIGN</label>
+                  <input
+                    type="text"
+                    value={newAstronautForm.callsign}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, callsign: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">AGE & SEX</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={newAstronautForm.age}
+                      onChange={e => setNewAstronautForm({ ...newAstronautForm, age: parseInt(e.target.value, 10) || 38 })}
+                      className="w-1/2 px-2 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                    />
+                    <select
+                      value={newAstronautForm.sex}
+                      onChange={e => setNewAstronautForm({ ...newAstronautForm, sex: e.target.value as any })}
+                      className="w-1/2 px-2 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="Female">F</option>
+                      <option value="Male">M</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">RESTING HR (BPM)</label>
+                  <input
+                    type="number"
+                    value={newAstronautForm.restingHeartRate}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, restingHeartRate: Number(e.target.value) })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">BASELINE SPO2 (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={newAstronautForm.bloodOxygen}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, bloodOxygen: Number(e.target.value) })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">CORE TEMP (°C)</label>
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={newAstronautForm.coreTemp}
+                    onChange={e => setNewAstronautForm({ ...newAstronautForm, coreTemp: Number(e.target.value) })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">BIOMEDICAL NOTES & PROTOCOL</label>
+                <textarea
+                  rows={2}
+                  value={newAstronautForm.notes}
+                  onChange={e => setNewAstronautForm({ ...newAstronautForm, notes: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsRegisterOpen(false)}
+                  className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saving ? 'Registering...' : 'Register Astronaut'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Existing Astronaut Labels */}
+      {isEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-[#0c101b] border border-slate-800 rounded-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-cyan-400 font-mono text-sm font-semibold">
+                <Edit2 className="w-4 h-4" />
+                <span>EDIT ASTRONAUT LABELS ({astronaut.id})</span>
+              </div>
+              <button
+                onClick={() => setIsEditOpen(false)}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs font-mono">
+              <div>
+                <label className="text-slate-400 block mb-1">ASTRONAUT FULL NAME</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">TACTICAL CODE</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.code}
+                    onChange={e => setEditForm({ ...editForm, code: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">CALLSIGN</label>
+                  <input
+                    type="text"
+                    value={editForm.callsign}
+                    onChange={e => setEditForm({ ...editForm, callsign: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">MISSION ROLE</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.role}
+                    onChange={e => setEditForm({ ...editForm, role: e.target.value })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">AGE</label>
+                  <input
+                    type="number"
+                    value={editForm.age}
+                    onChange={e => setEditForm({ ...editForm, age: parseInt(e.target.value, 10) || 40 })}
+                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">BIOMEDICAL FLIGHT NOTES</label>
+                <textarea
+                  rows={3}
+                  value={editForm.notes}
+                  onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsEditOpen(false)}
+                  className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-sans"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saving ? 'Saving...' : 'Update Labels'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

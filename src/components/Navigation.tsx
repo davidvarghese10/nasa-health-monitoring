@@ -61,9 +61,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <div className="sticky top-0 z-50 w-full bg-[#07090e]/95 backdrop-blur border-b border-slate-800/80">
+    <div className="sticky top-0 z-50 w-full bg-slate-950/75 backdrop-blur-xl border-b border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
       {/* Simulation Notice Ribbon */}
-      <div className="bg-slate-950/90 border-b border-slate-800/50 px-4 py-1 text-xs">
+      <div className="bg-slate-950/60 border-b border-white/5 px-4 py-1 text-xs">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3 text-slate-400">
             <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">

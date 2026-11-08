@@ -12,16 +12,26 @@ import {
   CheckCircle2,
   Database,
   Download,
+  Edit2,
   FileSpreadsheet,
   FileText,
   RefreshCw,
   Sparkles,
   UploadCloud,
+  User,
+  UserCheck,
+  UserPlus,
   X
 } from 'lucide-react';
 import { api } from '../services/api';
-import { SAMPLE_CSV_CONTENT, SAMPLE_JSON_CONTENT, SAMPLE_PDF_BASE64_TEXT } from '../services/sample_files';
+import {
+  SAMPLE_CSV_CONTENT,
+  SAMPLE_JSON_CONTENT,
+  SAMPLE_NEW_ASTRONAUT_CSV,
+  SAMPLE_PDF_BASE64_TEXT
+} from '../services/sample_files';
 import { Astronaut, UploadExtractionResult } from '../types';
+import { LiquidGlassCard } from '../components/LiquidGlassCard';
 
 interface DataUploadProps {
   astronauts: Astronaut[];
@@ -32,7 +42,28 @@ export const DataUpload: React.FC<DataUploadProps> = ({
   astronauts,
   onUploadSuccess,
 }) => {
-  const [selectedAstronaut, setSelectedAstronaut] = useState<string>(astronauts[0]?.id || 'ASTRO-01');
+  // Target astronaut selection mode: 'AUTO_DETECT' | 'NEW_ASTRONAUT' | existing astronautId
+  const [targetMode, setTargetMode] = useState<string>('AUTO_DETECT');
+  
+  // Custom astronaut metadata state for new or detected astronauts
+  const [customAstro, setCustomAstro] = useState<{
+    id: string;
+    code: string;
+    name: string;
+    role: string;
+    callsign: string;
+    age: number;
+    sex: 'Female' | 'Male';
+  }>({
+    id: `ASTRO-0${astronauts.length + 1}`,
+    code: `CREW-ASTRO-0${astronauts.length + 1}`,
+    name: `Astronaut ASTRO-0${astronauts.length + 1}`,
+    role: 'Flight Systems & Payload Operations Specialist',
+    callsign: 'Starlight',
+    age: 38,
+    sex: 'Female',
+  });
+
   const [uploadResult, setUploadResult] = useState<UploadExtractionResult | null>(null);
   const [history, setHistory] = useState<UploadExtractionResult[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -51,8 +82,24 @@ export const DataUpload: React.FC<DataUploadProps> = ({
       setLoading(true);
       setErrorMessage(null);
       setCommitMessage(null);
-      const res = await api.uploadDataset(file, selectedAstronaut);
+
+      const effectiveTargetId = targetMode === 'NEW_ASTRONAUT' ? customAstro.id : targetMode;
+      const res = await api.uploadDataset(file, effectiveTargetId);
       setUploadResult(res);
+
+      // If the file contained detected astronaut metadata, sync it to customAstro state
+      if (res.detectedAstronaut) {
+        setCustomAstro(prev => ({
+          id: res.detectedAstronaut?.id || prev.id,
+          code: res.detectedAstronaut?.code || prev.code,
+          name: res.detectedAstronaut?.name || prev.name,
+          role: res.detectedAstronaut?.role || prev.role,
+          callsign: res.detectedAstronaut?.callsign || prev.callsign,
+          age: res.detectedAstronaut?.age || prev.age,
+          sex: res.detectedAstronaut?.sex || prev.sex,
+        }));
+      }
+
       const updatedHistory = await api.getUploadHistory();
       setHistory(updatedHistory);
     } catch (err: any) {
@@ -67,9 +114,29 @@ export const DataUpload: React.FC<DataUploadProps> = ({
     try {
       setCommitting(true);
       setErrorMessage(null);
-      const res = await api.commitUpload(uploadResult.fileId);
+
+      // Determine astronaut profile override
+      let astronautOverride: Partial<Astronaut> | undefined;
+      const targetId = uploadResult.detectedAstronaut?.id || uploadResult.astronautId;
+      const isExisting = astronauts.some(a => a.id === targetId || a.id === targetMode);
+
+      if (!isExisting || targetMode === 'NEW_ASTRONAUT' || uploadResult.detectedAstronaut) {
+        astronautOverride = {
+          id: customAstro.id || targetId,
+          code: customAstro.code,
+          name: customAstro.name,
+          role: customAstro.role,
+          callsign: customAstro.callsign,
+          age: customAstro.age,
+          sex: customAstro.sex,
+        };
+      }
+
+      const res = await api.commitUpload(uploadResult.fileId, astronautOverride);
       if (res.success) {
-        setCommitMessage(`Successfully committed ${res.committedCount} verified records into active astronaut database.`);
+        setCommitMessage(
+          `Successfully committed ${res.committedCount} verified records into astronaut dossier: ${res.astronaut.name} (${res.astronaut.code}).`
+        );
         uploadResult.status = 'COMMITTED';
         onUploadSuccess();
         const updatedHistory = await api.getUploadHistory();
@@ -83,11 +150,14 @@ export const DataUpload: React.FC<DataUploadProps> = ({
   };
 
   // 1-Click Sample File Loaders
-  const handleLoadSample = async (type: 'csv' | 'json' | 'pdf') => {
+  const handleLoadSample = async (type: 'csv' | 'new_astro_csv' | 'json' | 'pdf') => {
     let file: File;
     if (type === 'csv') {
       const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv' });
       file = new File([blob], 'NASA_LSDA_Expedition74_Telemetry.csv', { type: 'text/csv' });
+    } else if (type === 'new_astro_csv') {
+      const blob = new Blob([SAMPLE_NEW_ASTRONAUT_CSV], { type: 'text/csv' });
+      file = new File([blob], 'Telemetry_Upload_Dr_Samantha_Reed_ASTRO04.csv', { type: 'text/csv' });
     } else if (type === 'json') {
       const blob = new Blob([SAMPLE_JSON_CONTENT], { type: 'application/json' });
       file = new File([blob], 'NASA_HRP_BioStream_Exp74.json', { type: 'application/json' });
@@ -98,52 +168,148 @@ export const DataUpload: React.FC<DataUploadProps> = ({
     await handleFileUpload(file);
   };
 
+  const isNewTarget = targetMode === 'NEW_ASTRONAUT' ||
+    (targetMode === 'AUTO_DETECT' && uploadResult?.detectedAstronaut && !astronauts.some(a => a.id === uploadResult.detectedAstronaut?.id));
+
   return (
     <div className="space-y-6">
       {/* Header & Description */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6">
+      <LiquidGlassCard className="p-6" accent="cyan">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
+            <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase mb-1">
+              <UploadCloud className="w-4 h-4" />
+              <span>DYNAMIC DATA INGESTION & ASTRONAUT SUBJECT MAPPING</span>
+            </div>
             <h1 className="text-xl font-bold text-white font-mono uppercase tracking-wide">
-              FLIGHT DATA INGESTION & MEDICAL REPORT PROCESSING
+              FLIGHT TELEMETRY INGESTION & MEDICAL REPORT PROCESSING
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
-              Accepts NASA bio-archive CSV telemetry, standardized JSON telemetry streams, and clinical flight evaluation PDF reports.
-              All incoming packets undergo automated schema validation, range checks (NASA STD-3001), and tabular extraction preview prior to database commitment.
+              Upload physiological datasets (CSV, JSON, PDF). Instead of binding only to pre-coded astronaut labels, ASTRA dynamically auto-detects astronaut identifiers from file headers, or lets you define new astronaut profiles on the fly!
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400 uppercase">TARGET CREW:</span>
+          {/* Dynamic Astronaut Assignment Mode */}
+          <div className="flex flex-col gap-1.5 min-w-[280px]">
+            <label className="text-[11px] font-mono text-slate-400 uppercase flex items-center justify-between">
+              <span>TARGET ASTRONAUT BINDING:</span>
+              {isNewTarget && (
+                <span className="text-cyan-400 font-semibold">[NEW SUBJECT DETECTED]</span>
+              )}
+            </label>
             <select
-              value={selectedAstronaut}
-              onChange={e => setSelectedAstronaut(e.target.value)}
-              className="px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
+              value={targetMode}
+              onChange={e => setTargetMode(e.target.value)}
+              className="px-3 py-2 rounded bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500"
             >
-              {astronauts.map(a => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.code})
-                </option>
-              ))}
+              <option value="AUTO_DETECT">⚡ Auto-Detect Astronaut from Uploaded Dataset</option>
+              <option value="NEW_ASTRONAUT">+ Create New Astronaut Profile from Upload</option>
+              <optgroup label="Existing Astronaut Crewmembers">
+                {astronauts.map(a => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.code})
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
         </div>
+
+        {/* Dynamic Astronaut Label & Metadata Customizer Card */}
+        {(targetMode === 'NEW_ASTRONAUT' || (uploadResult?.detectedAstronaut && targetMode === 'AUTO_DETECT')) && (
+          <div className="mt-5 p-4 rounded-lg bg-cyan-950/20 border border-cyan-800/40 space-y-3">
+            <div className="flex items-center justify-between border-b border-cyan-800/40 pb-2">
+              <div className="flex items-center gap-2 text-cyan-300 font-mono text-xs font-semibold">
+                <UserPlus className="w-4 h-4" />
+                <span>DYNAMIC ASTRONAUT PROFILE DEFINITION</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400">
+                {uploadResult?.detectedAstronaut ? 'PRE-FILLED FROM DETECTED FILE METADATA' : 'USER-CONFIGURED SUBJECT'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs font-mono">
+              <div>
+                <label className="text-slate-400 block mb-1">ASTRONAUT ID / CODE</label>
+                <input
+                  type="text"
+                  value={customAstro.id}
+                  onChange={e => setCustomAstro({ ...customAstro, id: e.target.value.toUpperCase() })}
+                  placeholder="e.g. ASTRO-04"
+                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">FULL NAME & RANK</label>
+                <input
+                  type="text"
+                  value={customAstro.name}
+                  onChange={e => setCustomAstro({ ...customAstro, name: e.target.value })}
+                  placeholder="e.g. Dr. Samantha Reed"
+                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">MISSION ROLE / ASSIGNMENT</label>
+                <input
+                  type="text"
+                  value={customAstro.role}
+                  onChange={e => setCustomAstro({ ...customAstro, role: e.target.value })}
+                  placeholder="e.g. Flight Specialist"
+                  className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">CALLSIGN & DEMOGRAPHICS</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customAstro.callsign}
+                    onChange={e => setCustomAstro({ ...customAstro, callsign: e.target.value })}
+                    placeholder="Callsign"
+                    className="w-1/2 px-2 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                  <input
+                    type="number"
+                    value={customAstro.age}
+                    onChange={e => setCustomAstro({ ...customAstro, age: parseInt(e.target.value, 10) || 38 })}
+                    placeholder="Age"
+                    className="w-1/2 px-2 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 1-Click Sample File Testing Bar */}
         <div className="mt-5 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-2 text-slate-400">
             <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>INSTANT TEST SUITE (1-CLICK VALIDATION SAMPLES):</span>
+            <span>INSTANT TEST SUITE (TRY DYNAMIC UPLOAD SAMPLES):</span>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
+              onClick={() => handleLoadSample('new_astro_csv')}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-700/60 font-semibold transition-colors"
+              title="Uploads dataset for brand new astronaut Dr. Samantha Reed (ASTRO-04)"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Load New Astronaut CSV (Dr. Samantha Reed)</span>
+            </button>
+
+            <button
               onClick={() => handleLoadSample('csv')}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-colors"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Load Sample CSV</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" />
+              <span>Standard CSV</span>
             </button>
 
             <button
@@ -152,7 +318,7 @@ export const DataUpload: React.FC<DataUploadProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-blue-300 border border-slate-700 transition-colors"
             >
               <FileText className="w-3.5 h-3.5 text-blue-400" />
-              <span>Load Sample JSON</span>
+              <span>Sample JSON</span>
             </button>
 
             <button
@@ -161,16 +327,18 @@ export const DataUpload: React.FC<DataUploadProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 transition-colors"
             >
               <FileText className="w-3.5 h-3.5 text-amber-400" />
-              <span>Load Sample Clinical Report</span>
+              <span>Clinical Medical PDF</span>
             </button>
           </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Upload Drag & Drop Zone */}
-      <div
+      <LiquidGlassCard
         onClick={() => fileInputRef.current?.click()}
-        className="group relative border-2 border-dashed border-slate-800 hover:border-cyan-500/60 rounded-lg p-8 text-center cursor-pointer bg-[#0b0f19]/60 hover:bg-[#0b0f19] transition-all"
+        interactive={true}
+        accent="cyan"
+        className="group relative !border-dashed border-cyan-500/30 hover:border-cyan-400 p-8 text-center cursor-pointer"
       >
         <input
           ref={fileInputRef}
@@ -191,16 +359,16 @@ export const DataUpload: React.FC<DataUploadProps> = ({
           DROP FLIGHT TELEMETRY FILE OR CLICK TO BROWSE
         </h3>
         <p className="text-xs text-slate-400 mt-1">
-          Supports CSV (tabular vitals), JSON (NASA-LSDA format), and PDF / TXT (Flight Surgeon Medical Reports)
+          Supports CSV (tabular vitals with astronaut headers), JSON (NASA-LSDA format), and PDF / TXT (Flight Medical Reports)
         </p>
 
         {loading && (
           <div className="mt-4 flex items-center justify-center gap-2 text-xs font-mono text-cyan-400">
             <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>Parsing file schema and executing physiological range validation...</span>
+            <span>Parsing file schema, detecting astronaut labels, and executing physiological validation...</span>
           </div>
         )}
-      </div>
+      </LiquidGlassCard>
 
       {errorMessage && (
         <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-3">
@@ -218,7 +386,7 @@ export const DataUpload: React.FC<DataUploadProps> = ({
 
       {/* Extracted Information Preview & Verification Table */}
       {uploadResult && (
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6 space-y-5">
+        <LiquidGlassCard className="p-6 space-y-5" accent="cyan">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
               <div className="flex items-center gap-2">
@@ -233,16 +401,18 @@ export const DataUpload: React.FC<DataUploadProps> = ({
                   {uploadResult.status}
                 </span>
               </div>
-              <div className="text-xs text-slate-400 mt-1 font-mono">
-                Source: {uploadResult.fileName} ({(uploadResult.fileSize / 1024).toFixed(1)} KB) · Protocol: {uploadResult.documentMetadata?.protocol || 'Standard'}
+              <div className="text-xs text-slate-400 mt-1 font-mono flex flex-wrap items-center gap-2">
+                <span>Source: {uploadResult.fileName} ({(uploadResult.fileSize / 1024).toFixed(1)} KB)</span>
+                <span>·</span>
+                <span className="text-cyan-400">
+                  Target Subject: <strong>{customAstro.name} ({customAstro.id})</strong>
+                </span>
+                <span>·</span>
+                <span>{uploadResult.records.length} records parsed</span>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-slate-400">
-                {uploadResult.records.length} records parsed · {uploadResult.validationErrorsCount} bounds violations
-              </span>
-
               {uploadResult.status !== 'COMMITTED' && (
                 <button
                   disabled={committing || uploadResult.records.length === 0}
@@ -252,12 +422,12 @@ export const DataUpload: React.FC<DataUploadProps> = ({
                   {committing ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving to Database...</span>
+                      <span>Ingesting into Active Crew Matrix...</span>
                     </>
                   ) : (
                     <>
                       <Database className="w-3.5 h-3.5" />
-                      <span>Verify & Commit Records</span>
+                      <span>Verify & Commit to Astronaut Dossier</span>
                     </>
                   )}
                 </button>
@@ -314,11 +484,11 @@ export const DataUpload: React.FC<DataUploadProps> = ({
               </tbody>
             </table>
           </div>
-        </div>
+        </LiquidGlassCard>
       )}
 
       {/* Processing History Log */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6">
+      <LiquidGlassCard className="p-6" accent="none">
         <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide mb-3">
           TELEMETRY INGESTION AUDIT TRAIL
         </h3>
@@ -361,7 +531,7 @@ export const DataUpload: React.FC<DataUploadProps> = ({
             ))}
           </div>
         )}
-      </div>
+      </LiquidGlassCard>
     </div>
   );
 };

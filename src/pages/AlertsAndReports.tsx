@@ -19,6 +19,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { NASA_SCIENTIFIC_LIBRARY } from '../data/nasa_references';
 import { AnomalyAlert, Astronaut, PhysiologicalRecord, UserProfile } from '../types';
+import { LiquidGlassCard } from '../components/LiquidGlassCard';
 
 interface AlertsAndReportsProps {
   astronauts: Astronaut[];
@@ -215,7 +216,7 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6">
+      <LiquidGlassCard className="p-6" accent="cyan">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 uppercase mb-1">
@@ -253,12 +254,12 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
             </button>
           </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Tab 1: Alerts Management Ledger */}
       {activeTab === 'alerts' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#0b0f19] border border-slate-800 rounded-lg text-xs font-mono">
+          <LiquidGlassCard className="p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono" accent="none">
             <div className="flex items-center gap-2">
               <span className="text-slate-400 uppercase">FILTER ALERTS:</span>
               {(['ALL', 'ACTIVE', 'RESOLVED'] as const).map(f => (
@@ -279,7 +280,7 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
             <div className="text-slate-400">
               Showing {filteredAlerts.length} alert records
             </div>
-          </div>
+          </LiquidGlassCard>
 
           <div className="space-y-3">
             {filteredAlerts.length === 0 ? (
@@ -288,9 +289,10 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
               </div>
             ) : (
               filteredAlerts.map(alert => (
-                <div
+                <LiquidGlassCard
                   key={alert.id}
-                  className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5 space-y-3"
+                  className="p-5 space-y-3"
+                  accent={alert.severity === 'CRITICAL' ? 'rose' : 'amber'}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
                     <div className="flex items-center gap-2">
@@ -366,7 +368,7 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
                       </button>
                     )}
                   </div>
-                </div>
+                </LiquidGlassCard>
               ))
             )}
           </div>
@@ -375,7 +377,7 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
 
       {/* Tab 2: Report Generator */}
       {activeTab === 'report-generator' && (
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6 space-y-6">
+        <LiquidGlassCard className="p-6 space-y-6" accent="cyan">
           <div>
             <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide">
               AEROSPACE MEDICAL REPORT CONFIGURATION
@@ -451,7 +453,7 @@ export const AlertsAndReports: React.FC<AlertsAndReportsProps> = ({
               <span>Export Raw JSON Telemetry</span>
             </button>
           </div>
-        </div>
+        </LiquidGlassCard>
       )}
 
       {/* Acknowledgment Modal */}

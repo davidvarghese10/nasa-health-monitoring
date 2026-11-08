@@ -20,6 +20,7 @@ import {
   Zap
 } from 'lucide-react';
 import { AnomalyAlert, Astronaut, PhysiologicalRecord } from '../types';
+import { LiquidGlassCard } from '../components/LiquidGlassCard';
 
 interface AnomalyDetectionProps {
   astronauts: Astronaut[];
@@ -66,7 +67,7 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner: Scientific Rationale & Distinction Notice */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6">
+      <LiquidGlassCard className="p-6" accent="cyan">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase mb-1">
@@ -115,10 +116,10 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
             </p>
           </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Filter and View Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-[#0b0f19] border border-slate-800 rounded-lg">
+      <LiquidGlassCard className="p-3 flex flex-wrap items-center justify-between gap-3" accent="none">
         <div className="flex items-center gap-2">
           {/* Tabs */}
           <div className="flex items-center p-0.5 rounded bg-slate-900 border border-slate-800">
@@ -176,7 +177,7 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
             </select>
           </div>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Tab 1: Alerts List */}
       {activeTab === 'alerts' && (
@@ -188,9 +189,10 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
             </div>
           ) : (
             filteredAlerts.map(alert => (
-              <div
+              <LiquidGlassCard
                 key={alert.id}
-                className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5 space-y-3 hover:border-slate-700 transition-all"
+                className="p-5 space-y-3"
+                accent={alert.severity === 'CRITICAL' ? 'rose' : alert.severity === 'MODERATE' ? 'amber' : 'blue'}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
                   <div className="flex items-center gap-2.5">
@@ -282,7 +284,7 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
                     </button>
                   )}
                 </div>
-              </div>
+              </LiquidGlassCard>
             ))
           )}
         </div>
@@ -290,7 +292,7 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
 
       {/* Tab 2: Machine Learning Architecture & Parameters */}
       {activeTab === 'ml-architecture' && (
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6 space-y-6">
+        <LiquidGlassCard className="p-6 space-y-6" accent="purple">
           <div>
             <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide">
               UNSUPERVISED ISOLATION FOREST & ML CONFIGURATION
@@ -329,7 +331,7 @@ export const AnomalyDetection: React.FC<AnomalyDetectionProps> = ({
               Average path length normalized by Euler-Mascheroni factor c(n) = 2(ln(n - 1) + 0.5772) - (2(n - 1)/n).
             </div>
           </div>
-        </div>
+        </LiquidGlassCard>
       )}
 
       {/* Acknowledgment Modal with Operator Notes */}

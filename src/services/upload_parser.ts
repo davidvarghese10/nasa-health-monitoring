@@ -21,6 +21,9 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
   let records: UploadExtractionResult['records'] = [];
   let fileType: 'csv' | 'json' | 'pdf' = 'csv';
   let documentMetadata: UploadExtractionResult['documentMetadata'] = {};
+  let detectedAstronaut: UploadExtractionResult['detectedAstronaut'] = undefined;
+
+  let effectiveAstronautId = input.astronautId;
 
   if (ext === 'csv' || input.mimeType.includes('csv') || input.mimeType.includes('text/plain')) {
     fileType = 'csv';
@@ -30,6 +33,32 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
       skip_empty_lines: true,
       trim: true,
     }) as Record<string, string>[];
+
+    // Detect astronaut metadata from CSV rows/headers if present
+    if (parsed.length > 0) {
+      const firstRow = parsed[0];
+      const detectedId = firstRow.astronaut_id || firstRow.astro_id || firstRow.subject_id || firstRow.subject || firstRow.astronaut;
+      const detectedName = firstRow.astronaut_name || firstRow.crew_name || firstRow.name || firstRow.subject_name;
+      const detectedCallsign = firstRow.callsign;
+      const detectedRole = firstRow.role || firstRow.assignment || firstRow.position;
+      const detectedAge = firstRow.age ? parseInt(firstRow.age, 10) : undefined;
+      const detectedSex = (firstRow.sex?.toLowerCase() === 'female' ? 'Female' : firstRow.sex?.toLowerCase() === 'male' ? 'Male' : undefined) as 'Female' | 'Male' | undefined;
+
+      if (detectedId || detectedName) {
+        const cleanedId = (detectedId || `ASTRO-${Date.now().toString().slice(-4)}`).toUpperCase().trim();
+        const cleanedName = detectedName || `Astronaut ${cleanedId}`;
+        const code = cleanedName.split(' ').pop()?.toUpperCase() || cleanedId;
+        detectedAstronaut = {
+          id: cleanedId,
+          code: `CREW-${code}`,
+          name: cleanedName,
+          role: detectedRole || "Flight Operations Specialist",
+          callsign: detectedCallsign || code,
+          age: detectedAge || 38,
+          sex: detectedSex || "Female",
+        };
+      }
+    }
 
     records = parsed.map((row, index) => {
       // Flexible field mapping
@@ -90,6 +119,30 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
     const parsed = JSON.parse(content);
     const dataList: any[] = Array.isArray(parsed) ? parsed : (parsed.telemetryStream || parsed.records || parsed.data || []);
 
+    // Detect astronaut metadata from JSON
+    const meta = parsed.metadata || parsed.astronaut || {};
+    const detectedId = meta.crewmemberId || meta.astronautId || meta.id || meta.subjectId;
+    const detectedName = meta.crewName || meta.astronautName || meta.name;
+    const detectedRole = meta.role || meta.assignment;
+    const detectedCallsign = meta.callsign;
+    const detectedAge = meta.age ? parseInt(meta.age, 10) : undefined;
+    const detectedSex = (meta.sex?.toLowerCase() === 'female' ? 'Female' : meta.sex?.toLowerCase() === 'male' ? 'Male' : undefined) as 'Female' | 'Male' | undefined;
+
+    if (detectedId || detectedName) {
+      const cleanedId = (detectedId || `ASTRO-${Date.now().toString().slice(-4)}`).toUpperCase().trim();
+      const cleanedName = detectedName || `Astronaut ${cleanedId}`;
+      const code = cleanedName.split(' ').pop()?.toUpperCase() || cleanedId;
+      detectedAstronaut = {
+        id: cleanedId,
+        code: `CREW-${code}`,
+        name: cleanedName,
+        role: detectedRole || "Flight Operations Specialist",
+        callsign: detectedCallsign || code,
+        age: detectedAge || 36,
+        sex: detectedSex || "Male",
+      };
+    }
+
     records = dataList.map((row, index) => {
       const timestamp = row.timestamp || row.time || new Date(Date.now() - (dataList.length - index) * 3600000).toISOString();
       const heartRate = Number(row.heartRate || row.heart_rate || row.hr || 70);
@@ -147,9 +200,28 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
         text = input.buffer.toString('utf-8');
       }
 
+      // Check for Astronaut subject identification in PDF text:
+      // e.g. SUBJECT: CDR Elena Rostova (ASTRO-01) or SUBJECT: Dr. Samantha Cristoforetti (ASTRO-04)
+      const subjectMatch = text.match(/SUBJECT:\s*([^\n\(|]+)(?:\(([^)]+)\))?/i);
+      const roleMatch = text.match(/(?:ASSIGNMENT|ROLE|POSITION):\s*([^\n|]+)/i);
+      const callsignMatch = text.match(/CALLSIGN:\s*([^\n|]+)/i);
+
+      if (subjectMatch) {
+        const name = subjectMatch[1].trim();
+        const detectedId = (subjectMatch[2] || `ASTRO-${Date.now().toString().slice(-4)}`).trim().toUpperCase();
+        const code = name.split(' ').pop()?.toUpperCase() || detectedId;
+        detectedAstronaut = {
+          id: detectedId,
+          code: `CREW-${code}`,
+          name,
+          role: roleMatch ? roleMatch[1].trim() : "Payload Operations Officer",
+          callsign: callsignMatch ? callsignMatch[1].trim() : code,
+          age: 40,
+          sex: "Female",
+        };
+      }
+
       // Extract telemetry lines from PDF text
-      // Matches lines like: Time: 2026-11-08T06:00:00Z | HR: 66 bpm | SpO2: 98.0% | BP: 118/74 mmHg ...
-      // or regex looking for HR / SpO2 pairs
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -187,7 +259,6 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
         }
       }
 
-      // If no structured table lines were matched in PDF, create clean synthesized parsed representation of the clinical report
       if (records.length === 0) {
         records.push({
           timestamp: new Date().toISOString(),
@@ -216,6 +287,24 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
     }
   }
 
+  // Resolve target astronaut ID
+  if (effectiveAstronautId === 'AUTO_DETECT' || !effectiveAstronautId || effectiveAstronautId === 'NEW_ASTRONAUT') {
+    if (detectedAstronaut?.id) {
+      effectiveAstronautId = detectedAstronaut.id;
+    } else {
+      effectiveAstronautId = `ASTRO-0${Math.floor(Math.random() * 900 + 100)}`;
+      detectedAstronaut = {
+        id: effectiveAstronautId,
+        code: `CREW-${effectiveAstronautId}`,
+        name: `Astronaut ${effectiveAstronautId}`,
+        role: "Flight Operations Specialist",
+        callsign: "Ranger",
+        age: 38,
+        sex: "Female",
+      };
+    }
+  }
+
   const validationErrorsCount = records.filter(r => r.validationStatus === 'OUT_OF_BOUNDS').length;
 
   return {
@@ -224,11 +313,12 @@ export async function processUploadedFile(input: ParseFileInput): Promise<Upload
     fileType,
     fileSize: input.buffer.length,
     uploadedAt: new Date().toISOString(),
-    astronautId: input.astronautId,
+    astronautId: effectiveAstronautId,
     status: 'PENDING_VERIFICATION',
     extractedRecordsCount: records.length,
     validationErrorsCount,
     records,
     documentMetadata,
+    detectedAstronaut,
   };
 }

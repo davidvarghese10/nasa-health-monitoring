@@ -79,6 +79,16 @@ app.get('/api/astronauts/:id', (req: Request, res: Response) => {
   res.json(astronaut);
 });
 
+app.post('/api/astronauts', (req: Request, res: Response) => {
+  const astronaut = dbService.registerOrUpdateAstronaut(req.body);
+  res.status(201).json(astronaut);
+});
+
+app.put('/api/astronauts/:id', (req: Request, res: Response) => {
+  const astronaut = dbService.registerOrUpdateAstronaut({ ...req.body, id: req.params.id });
+  res.json(astronaut);
+});
+
 // 5. Telemetry
 app.get('/api/telemetry/:astronautId', (req: Request, res: Response) => {
   const { astronautId } = req.params;
@@ -180,11 +190,11 @@ app.post('/api/upload', upload.single('file'), async (req: Request, res: Respons
 });
 
 app.post('/api/upload/commit', (req: Request, res: Response) => {
-  const { fileId } = req.body as { fileId: string };
+  const { fileId, astronautOverride } = req.body as { fileId: string; astronautOverride?: any };
   if (!fileId) {
     return res.status(400).json({ error: 'fileId is required' });
   }
-  const result = dbService.commitUploadedRecords(fileId);
+  const result = dbService.commitUploadedRecords(fileId, astronautOverride);
   res.json(result);
 });
 

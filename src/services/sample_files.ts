@@ -17,6 +17,14 @@ export const SAMPLE_CSV_CONTENT = `timestamp,astronaut_id,heart_rate_bpm,spo2_pc
 2026-11-08T20:00:00Z,ASTRO-01,66.3,97.8,119,73,37.15,14.4,0.0,322.8,1.2
 2026-11-08T22:00:00Z,ASTRO-01,63.0,98.2,117,72,37.02,13.9,0.0,319.4,1.0`;
 
+export const SAMPLE_NEW_ASTRONAUT_CSV = `timestamp,astronaut_id,astronaut_name,callsign,role,age,sex,heart_rate_bpm,spo2_pct,systolic_bp_mmhg,diastolic_bp_mmhg,core_temp_c,respiratory_rate_bpm,sleep_duration_hrs,radiation_usv_day
+2026-11-08T00:00:00Z,ASTRO-04,Dr. Samantha Reed,Nova,Flight Surgeon & Astrobiologist,39,Female,60.2,98.6,115,72,36.95,13.8,7.6,310.2
+2026-11-08T04:00:00Z,ASTRO-04,Dr. Samantha Reed,Nova,Flight Surgeon & Astrobiologist,39,Female,58.0,98.8,112,70,36.80,13.2,7.6,305.0
+2026-11-08T08:00:00Z,ASTRO-04,Dr. Samantha Reed,Nova,Flight Surgeon & Astrobiologist,39,Female,66.4,98.2,118,74,37.15,14.5,0.0,320.4
+2026-11-08T12:00:00Z,ASTRO-04,Dr. Samantha Reed,Nova,Flight Surgeon & Astrobiologist,39,Female,71.0,97.9,122,76,37.30,15.0,0.0,328.0
+2026-11-08T16:00:00Z,ASTRO-04,Dr. Samantha Reed,Nova,Flight Surgeon & Astrobiologist,39,Female,112.5,96.8,136,80,37.85,19.2,0.0,332.1
+2026-11-08T20:00:00Z,ASTRO-04,Dr. Samantha Reed,Nova,Flight Surgeon & Astrobiologist,39,Female,63.1,98.4,116,73,37.05,14.0,0.0,314.5`;
+
 export const SAMPLE_JSON_CONTENT = JSON.stringify({
   metadata: {
     exportSource: "NASA Johnson Space Center Life Sciences Data Archive (LSDA)",

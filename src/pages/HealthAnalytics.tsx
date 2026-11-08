@@ -35,6 +35,7 @@ import {
 } from 'recharts';
 import { NASA_PHYSIOLOGICAL_BENCHMARKS } from '../data/nasa_references';
 import { Astronaut, PhysiologicalRecord } from '../types';
+import { LiquidGlassCard } from '../components/LiquidGlassCard';
 
 interface HealthAnalyticsProps {
   astronauts: Astronaut[];
@@ -164,7 +165,7 @@ export const HealthAnalytics: React.FC<HealthAnalyticsProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Console Bar: Astronaut & Filter Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-[#0b0f19] border border-slate-800 rounded-lg">
+      <LiquidGlassCard className="p-4 flex flex-wrap items-center justify-between gap-4" accent="cyan">
         <div className="flex items-center gap-3">
           <label className="text-xs font-mono text-slate-400 uppercase">SUBJECT:</label>
           <div className="flex gap-2">
@@ -210,7 +211,7 @@ export const HealthAnalytics: React.FC<HealthAnalyticsProps> = ({
             <span>Config Limits</span>
           </button>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Configurable Reference Ranges Drawer */}
       {showConfigRange && (
@@ -279,34 +280,36 @@ export const HealthAnalytics: React.FC<HealthAnalyticsProps> = ({
       )}
 
       {/* Metric Selector Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
         {metricsConfig.map(m => {
           const Icon = m.icon;
           const isSelected = selectedMetric === m.id;
           return (
-            <button
+            <LiquidGlassCard
               key={m.id}
+              interactive={true}
+              accent={isSelected ? 'cyan' : 'none'}
               onClick={() => setSelectedMetric(m.id as any)}
-              className={`p-2.5 rounded border text-left transition-all ${
+              className={`p-3 text-left transition-all ${
                 isSelected
-                  ? 'bg-slate-900 border-cyan-500/60 shadow-md'
-                  : 'bg-[#0b0f19] border-slate-800/80 hover:border-slate-700'
+                  ? 'bg-slate-900/90 !border-cyan-500/60 shadow-lg shadow-cyan-950/40'
+                  : 'hover:bg-slate-900/60'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-mono text-slate-500 uppercase">{m.unit}</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-mono text-slate-400 uppercase">{m.unit}</span>
                 <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-cyan-400' : 'text-slate-400'}`} />
               </div>
               <div className={`text-xs font-semibold truncate ${isSelected ? 'text-white' : 'text-slate-300'}`}>
                 {m.label}
               </div>
-            </button>
+            </LiquidGlassCard>
           );
         })}
       </div>
 
       {/* Main Analytics Visualization Stage */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6 space-y-6">
+      <LiquidGlassCard className="p-6 space-y-6" accent="cyan">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -398,12 +401,12 @@ export const HealthAnalytics: React.FC<HealthAnalyticsProps> = ({
             TIME-SYNCED WITH TDRS SPACE NETWORK GROUND SATELLITES
           </span>
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* 2-Column Split: Daily Comparisons Bar Chart + Measurement Frequency Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Daily Aggregations */}
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5">
+        <LiquidGlassCard className="p-5" accent="blue">
           <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide mb-1">
             DAILY TELEMETRY COMPARISON
           </h3>
@@ -427,10 +430,10 @@ export const HealthAnalytics: React.FC<HealthAnalyticsProps> = ({
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </LiquidGlassCard>
 
         {/* Measurement Frequency Distribution */}
-        <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-5">
+        <LiquidGlassCard className="p-5" accent="purple">
           <h3 className="text-sm font-semibold text-white font-mono uppercase tracking-wide mb-1">
             MEASUREMENT VALUE DISTRIBUTION
           </h3>
@@ -449,7 +452,7 @@ export const HealthAnalytics: React.FC<HealthAnalyticsProps> = ({
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </LiquidGlassCard>
       </div>
     </div>
   );

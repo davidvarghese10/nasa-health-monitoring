@@ -385,26 +385,93 @@ export class DatabaseService {
     return alert;
   }
 
+  registerOrUpdateAstronaut(data: Partial<Astronaut>): Astronaut {
+    const astroId = (data.id || `ASTRO-0${this.state.astronauts.length + 1}`).toUpperCase().trim();
+    let astronaut = this.state.astronauts.find(a => a.id === astroId);
+
+    if (astronaut) {
+      // Update existing astronaut labels/metadata
+      if (data.name) astronaut.name = data.name;
+      if (data.code) astronaut.code = data.code;
+      if (data.role) astronaut.role = data.role;
+      if (data.callsign) astronaut.callsign = data.callsign;
+      if (data.age) astronaut.age = data.age;
+      if (data.sex) astronaut.sex = data.sex;
+      if (data.notes) astronaut.notes = data.notes;
+      if (data.baseline) astronaut.baseline = { ...astronaut.baseline, ...data.baseline };
+      if (data.status) astronaut.status = data.status;
+    } else {
+      // Create new dynamic astronaut from uploaded data or registration
+      const code = data.code || `CREW-${(data.name || astroId).split(' ').pop()?.toUpperCase()}`;
+      astronaut = {
+        id: astroId,
+        code,
+        name: data.name || `Astronaut ${code}`,
+        callsign: data.callsign || code,
+        role: data.role || "Flight Specialist & Ingested Payload Subject",
+        mission: data.mission || this.state.mission.missionName,
+        age: data.age || 38,
+        sex: data.sex || "Female",
+        evaHours: data.evaHours || 12.0,
+        spaceflightDays: data.spaceflightDays || 142,
+        microgravityDay: data.microgravityDay || 142,
+        status: data.status || "NOMINAL",
+        avatarUrl: data.avatarUrl || "/src/assets/images/astronaut_alex_1794153633409.jpg",
+        baseline: data.baseline || {
+          restingHeartRate: 64,
+          bloodOxygen: 98.2,
+          systolicBP: 118,
+          diastolicBP: 74,
+          coreTemp: 37.15,
+          respiratoryRate: 14.0,
+          sleepDuration: 7.0,
+          dailyRadiationRate: 320,
+        },
+        notes: data.notes || `Subject dynamically ingested via flight telemetry upload. Registered into active Expedition 74 health matrix.`
+      };
+      this.state.astronauts.push(astronaut);
+      if (!this.state.telemetry[astroId]) {
+        this.state.telemetry[astroId] = [];
+      }
+      this.state.mission.totalCrew = this.state.astronauts.length;
+    }
+
+    this.saveDatabase();
+    return astronaut;
+  }
+
   addUploadedDataset(upload: UploadExtractionResult) {
     this.state.uploads.unshift(upload);
     this.saveDatabase();
   }
 
-  commitUploadedRecords(fileId: string): { success: boolean; committedCount: number } {
+  commitUploadedRecords(fileId: string, astronautOverride?: Partial<Astronaut>): { success: boolean; committedCount: number; astronaut: Astronaut } {
     const upload = this.state.uploads.find(u => u.fileId === fileId);
     if (!upload || upload.status === 'COMMITTED') {
-      return { success: false, committedCount: 0 };
+      const existingAstro = this.getAstronaut(upload?.astronautId || '') || this.state.astronauts[0];
+      return { success: false, committedCount: 0, astronaut: existingAstro };
     }
 
-    const astronaut = this.getAstronaut(upload.astronautId);
+    const effectiveId = (astronautOverride?.id || upload.astronautId || upload.detectedAstronaut?.id || `ASTRO-0${this.state.astronauts.length + 1}`).toUpperCase().trim();
+    upload.astronautId = effectiveId;
+
+    let astronaut = this.getAstronaut(effectiveId);
     if (!astronaut) {
-      return { success: false, committedCount: 0 };
+      // Automatically register the new astronaut from detected or override metadata
+      const candidateData: Partial<Astronaut> = {
+        id: effectiveId,
+        ...(upload.detectedAstronaut || {}),
+        ...(astronautOverride || {}),
+      };
+      astronaut = this.registerOrUpdateAstronaut(candidateData);
+    } else if (astronautOverride) {
+      astronaut = this.registerOrUpdateAstronaut({ ...astronautOverride, id: effectiveId });
     }
 
     const validRecords = upload.records.filter(r => r.validationStatus === 'VALID' || r.validationStatus === 'WARNING');
     const newPhysioRecords: PhysiologicalRecord[] = validRecords.map((r, idx) => ({
-      id: `up-rec-${upload.astronautId}-${Date.now()}-${idx}`,
-      astronautId: upload.astronautId,
+      id: `up-rec-${effectiveId}-${Date.now()}-${idx}`,
+      astronautId: effectiveId,
       timestamp: r.timestamp,
       heartRate: r.heartRate,
       bloodOxygen: r.bloodOxygen,
@@ -425,17 +492,21 @@ export class DatabaseService {
       isAnomaly: false,
     }));
 
-    if (!this.state.telemetry[upload.astronautId]) {
-      this.state.telemetry[upload.astronautId] = [];
+    if (!this.state.telemetry[effectiveId]) {
+      this.state.telemetry[effectiveId] = [];
     }
 
-    this.state.telemetry[upload.astronautId].push(...newPhysioRecords);
-    // Sort chronologically
-    this.state.telemetry[upload.astronautId].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    this.state.telemetry[effectiveId].push(...newPhysioRecords);
+    this.state.telemetry[effectiveId].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    // Retrain anomaly engine with newly ingested records
+    if (this.state.telemetry[effectiveId].length >= 10) {
+      this.anomalyEngine.trainModel(this.state.telemetry[effectiveId]);
+    }
 
     // Run anomaly detection on newly committed records
     for (const rec of newPhysioRecords) {
-      const detected = this.anomalyEngine.evaluateRecord(rec, astronaut, this.state.telemetry[upload.astronautId]);
+      const detected = this.anomalyEngine.evaluateRecord(rec, astronaut, this.state.telemetry[effectiveId]);
       if (detected.length > 0) {
         rec.isAnomaly = true;
         this.state.alerts.push(...detected);
@@ -449,7 +520,7 @@ export class DatabaseService {
 
     upload.status = 'COMMITTED';
     this.saveDatabase();
-    return { success: true, committedCount: newPhysioRecords.length };
+    return { success: true, committedCount: newPhysioRecords.length, astronaut };
   }
 
   // Simulation Controls: Start, Pause, Reset, Step, Inject Anomaly

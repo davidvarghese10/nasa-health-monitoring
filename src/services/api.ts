@@ -43,6 +43,24 @@ export const api = {
     return handleResponse(res);
   },
 
+  async createAstronaut(data: Partial<Astronaut>): Promise<Astronaut> {
+    const res = await fetch('/api/astronauts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async updateAstronaut(id: string, data: Partial<Astronaut>): Promise<Astronaut> {
+    const res = await fetch(`/api/astronauts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
   async getTelemetry(astronautId: string, range: '24h' | '7d' | '30d' = '7d'): Promise<PhysiologicalRecord[]> {
     const res = await fetch(`/api/telemetry/${astronautId}?range=${range}`);
     return handleResponse(res);
@@ -103,11 +121,11 @@ export const api = {
     return handleResponse(res);
   },
 
-  async commitUpload(fileId: string): Promise<{ success: boolean; committedCount: number }> {
+  async commitUpload(fileId: string, astronautOverride?: Partial<Astronaut>): Promise<{ success: boolean; committedCount: number; astronaut: Astronaut }> {
     const res = await fetch('/api/upload/commit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileId }),
+      body: JSON.stringify({ fileId, astronautOverride }),
     });
     return handleResponse(res);
   },

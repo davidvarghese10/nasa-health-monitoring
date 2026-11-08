@@ -124,6 +124,15 @@ export interface UploadExtractionResult {
     sourceFacility?: string;
     extractionConfidence?: number;
   };
+  detectedAstronaut?: {
+    id: string;
+    code: string;
+    name: string;
+    role?: string;
+    callsign?: string;
+    age?: number;
+    sex?: 'Female' | 'Male';
+  };
 }
 
 export interface SimulationState {

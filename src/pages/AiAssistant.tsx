@@ -21,6 +21,7 @@ import {
 import { NASA_SCIENTIFIC_LIBRARY } from '../data/nasa_references';
 import { api } from '../services/api';
 import { Astronaut, ChatMessage } from '../types';
+import { LiquidGlassCard } from '../components/LiquidGlassCard';
 
 interface AiAssistantProps {
   astronauts: Astronaut[];
@@ -112,7 +113,7 @@ How may I assist with crew biomedical monitoring or anomaly assessment today?`,
   return (
     <div className="space-y-6">
       {/* Header & NASA Document Grounding Context */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg p-6">
+      <LiquidGlassCard className="p-6" accent="cyan">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 uppercase mb-1">
@@ -156,7 +157,7 @@ How may I assist with crew biomedical monitoring or anomaly assessment today?`,
             </span>
           ))}
         </div>
-      </div>
+      </LiquidGlassCard>
 
       {/* Suggested Quick Questions */}
       <div className="space-y-2">
@@ -180,7 +181,7 @@ How may I assist with crew biomedical monitoring or anomaly assessment today?`,
       </div>
 
       {/* Chat Conversation Viewport */}
-      <div className="bg-[#0b0f19] border border-slate-800 rounded-lg flex flex-col h-[520px]">
+      <LiquidGlassCard className="flex flex-col h-[540px] p-0 overflow-hidden" accent="blue">
         {/* Messages Stream */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {messages.map(msg => (
@@ -300,7 +301,7 @@ How may I assist with crew biomedical monitoring or anomaly assessment today?`,
             <span>NASA SPACE APPS CHALLENGE 2026</span>
           </div>
         </div>
-      </div>
+      </LiquidGlassCard>
     </div>
   );
 };

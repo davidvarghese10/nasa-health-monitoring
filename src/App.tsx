@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ActivePage, Navigation } from './components/Navigation';
+import { GalaxyBackground } from './components/GalaxyBackground';
 import { SimulationControlsModal } from './components/SimulationControlsModal';
 import { AiAssistant } from './pages/AiAssistant';
 import { AlertsAndReports } from './pages/AlertsAndReports';
@@ -171,9 +172,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
-      {/* Top Bar Navigation */}
-      <Navigation
+    <div className="relative min-h-screen text-slate-100 flex flex-col font-sans selection:bg-cyan-500/20 selection:text-cyan-300 overflow-x-hidden">
+      {/* Galaxy Cosmic Background with Stars, Meteors, and Planets */}
+      <GalaxyBackground />
+
+      <div className="relative z-10 flex flex-col flex-1">
+        {/* Top Bar Navigation */}
+        <Navigation
         activePage={activePage}
         setActivePage={setActivePage}
         mission={mission}
@@ -211,6 +216,7 @@ export default function App() {
             telemetry={telemetry}
             alerts={alerts}
             onAcknowledgeAlert={handleAcknowledgeAlert}
+            onRefreshAstronauts={loadPlatformData}
           />
         )}
 
@@ -284,6 +290,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 }
